@@ -10,6 +10,7 @@ import {
   ProviderBalance,
   DashboardData,
 } from "@/lib/api";
+import Link from "next/link";
 import ProviderBalanceCards from "@/components/ProviderBalanceCards";
 import TransactionFeed from "@/components/TransactionFeed";
 import UserActivity from "@/components/UserActivity";
@@ -175,7 +176,29 @@ export default function DashboardPage() {
             Real-time overview of all operations
           </p>
         </div>
-        <ConnectionStatus status={wsStatus} />
+        <div className="flex items-center gap-3">
+          <Link
+            href="/dashboard/balances"
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-dark-500 border border-dark-400 text-dark-200 hover:text-dark-50 hover:border-dark-300 transition-colors text-sm"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+            </svg>
+            <span className="hidden sm:block">Balances</span>
+          </Link>
+          <Link
+            href="/dashboard/team"
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gold text-dark font-semibold hover:bg-gold/90 transition-colors text-sm"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M12 4v16m8-8H4" />
+            </svg>
+            Add Agent
+          </Link>
+          <ConnectionStatus status={wsStatus} />
+        </div>
       </div>
 
       {/* KPI Summary Cards */}

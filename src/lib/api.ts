@@ -156,6 +156,22 @@ export async function initializeBalances(
   );
 }
 
+export async function adminAdjustBalance(
+  token: string,
+  companyId: string,
+  userId: string,
+  provider: string,
+  amount: number,
+  operation: "add" | "subtract" | "set"
+) {
+  return apiRequest<ProviderBalance>("/api/v1/transactions/balances/admin-adjust/", {
+    method: "POST",
+    token,
+    companyId,
+    body: { user: userId, provider, amount, operation },
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Customers
 // ---------------------------------------------------------------------------
