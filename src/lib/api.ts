@@ -177,6 +177,69 @@ export async function getDashboard(token: string, companyId: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Team Management
+// ---------------------------------------------------------------------------
+export interface TeamMember {
+  id: string;
+  user: string;
+  user_email: string;
+  user_full_name: string;
+  user_phone: string;
+  user_avatar: string | null;
+  company: string;
+  company_name: string;
+  role: string;
+  branch: string | null;
+  branch_name: string | null;
+  is_active: boolean;
+  joined_at: string;
+  deactivated_at: string | null;
+}
+
+export async function getTeamMembers(token: string, companyId: string): Promise<TeamMember[]> {
+  return apiRequest<TeamMember[]>("/api/v1/auth/team/", { token, companyId });
+}
+
+export async function updateTeamMember(
+  token: string,
+  companyId: string,
+  memberId: string,
+  data: { role?: string; branch?: string | null; is_active?: boolean }
+): Promise<TeamMember> {
+  return apiRequest<TeamMember>(`/api/v1/auth/team/${memberId}/update/`, {
+    method: "PATCH",
+    token,
+    companyId,
+    body: data,
+  });
+}
+
+export async function deactivateTeamMember(
+  token: string,
+  companyId: string,
+  memberId: string
+): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>(`/api/v1/auth/team/${memberId}/deactivate/`, {
+    method: "POST",
+    token,
+    companyId,
+  });
+}
+
+export async function createInvitation(
+  token: string,
+  companyId: string,
+  data: { email: string; role: string; branch?: string }
+): Promise<{ id: string; email: string; role: string; token: string }> {
+  return apiRequest(`/api/v1/auth/invitations/`, {
+    method: "POST",
+    token,
+    companyId,
+    body: data,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Plans & Registration
 // ---------------------------------------------------------------------------
 export interface SubscriptionPlan {

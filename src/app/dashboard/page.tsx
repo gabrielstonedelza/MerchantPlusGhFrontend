@@ -5,22 +5,19 @@ import { DashboardWebSocket, WebSocketMessage } from "@/lib/websocket";
 import {
   getTransactions,
   getProviderBalances,
-  getCustomers,
   getDashboard,
   Transaction,
   ProviderBalance,
-  Customer,
   DashboardData,
 } from "@/lib/api";
 import ProviderBalanceCards from "@/components/ProviderBalanceCards";
 import TransactionFeed from "@/components/TransactionFeed";
-import CustomerActivity from "@/components/CustomerActivity";
+import UserActivity from "@/components/UserActivity";
 import ConnectionStatus from "@/components/ConnectionStatus";
 
 export default function DashboardPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [balances, setBalances] = useState<ProviderBalance[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [wsStatus, setWsStatus] = useState<string>("connecting");
   const [loading, setLoading] = useState(true);
@@ -33,15 +30,13 @@ export default function DashboardPage() {
     if (!token || !companyId) return;
 
     try {
-      const [txData, balData, custData, dashData] = await Promise.all([
+      const [txData, balData, dashData] = await Promise.all([
         getTransactions(token, companyId),
         getProviderBalances(token, companyId),
-        getCustomers(token, companyId),
         getDashboard(token, companyId),
       ]);
       setTransactions(txData);
       setBalances(balData);
-      setCustomers(custData);
       setDashboard(dashData);
     } catch (err) {
       console.error("Failed to fetch initial data:", err);
@@ -60,22 +55,6 @@ export default function DashboardPage() {
         return updated;
       }
       return [tx, ...prev];
-    });
-  }, []);
-
-  const handleCustomerUpdate = useCallback((data: WebSocketMessage) => {
-    const cust = data.customer as Customer & { action: string };
-    setCustomers((prev) => {
-      if (cust.action === "deleted") {
-        return prev.filter((c) => c.id !== cust.id);
-      }
-      const existing = prev.findIndex((c) => c.id === cust.id);
-      if (existing >= 0) {
-        const updated = [...prev];
-        updated[existing] = cust;
-        return updated;
-      }
-      return [cust, ...prev];
     });
   }, []);
 
@@ -162,7 +141,6 @@ export default function DashboardPage() {
 
     ws.on("initial_state", handleInitialState);
     ws.on("transaction_update", handleTransactionUpdate);
-    ws.on("customer_update", handleCustomerUpdate);
     ws.on("balance_change", handleBalanceChange);
 
     ws.connect();
@@ -176,7 +154,6 @@ export default function DashboardPage() {
     fetchInitialData,
     handleInitialState,
     handleTransactionUpdate,
-    handleCustomerUpdate,
     handleBalanceChange,
   ]);
 
@@ -236,7 +213,7 @@ export default function DashboardPage() {
           <TransactionFeed transactions={transactions} />
         </div>
         <div>
-          <CustomerActivity customers={customers} />
+          <UserActivity transactions={transactions} />
         </div>
       </div>
     </div>
