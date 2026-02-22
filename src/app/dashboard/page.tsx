@@ -24,8 +24,16 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const wsRef = useRef<DashboardWebSocket | null>(null);
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") || "" : "";
-  const companyId = typeof window !== "undefined" ? localStorage.getItem("companyId") || "" : "";
+  // Use state so values are read after hydration and trigger re-renders
+  const [token, setToken] = useState("");
+  const [companyId, setCompanyId] = useState("");
+
+  useEffect(() => {
+    const storedToken = localStorage.getItem("token") || "";
+    const storedCompanyId = localStorage.getItem("companyId") || "";
+    setToken(storedToken);
+    setCompanyId(storedCompanyId);
+  }, []);
 
   const fetchInitialData = useCallback(async () => {
     if (!token || !companyId) return;

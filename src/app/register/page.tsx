@@ -182,15 +182,13 @@ export default function RegisterPage() {
               <strong className="text-dark-50">{form.company_name}</strong> has been
               successfully registered on MerchantPlus.
             </p>
-            <p className="text-dark-300 text-sm mb-10">
-              Sign in with your owner account ({form.owner_email}) to access your dashboard.
-            </p>
-            <button
-              onClick={() => router.push("/login")}
-              className="btn-primary px-8 py-3 text-base w-full"
+            <Link
+                href="/login"
+                className="btn-primary px-8 py-3 text-base w-full block text-center"
             >
               Continue to Sign In
-            </button>
+            </Link>
+
           </div>
         </div>
       </div>

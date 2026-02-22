@@ -32,7 +32,22 @@ export async function apiRequest<T = unknown>(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || error.detail || `Request failed: ${response.status}`);
+
+    // DRF returns { error: "..." } for custom errors, { detail: "..." } for
+    // permission/auth errors, or { field: ["msg", ...], ... } for validation.
+    if (error.error) throw new Error(error.error);
+    if (error.detail) throw new Error(error.detail);
+
+    // Handle DRF field-level validation errors: { field: ["msg"] }
+    const fieldErrors = Object.entries(error)
+      .filter(([, v]) => Array.isArray(v))
+      .map(([field, msgs]) => {
+        const label = field.replace(/_/g, " ");
+        return `${label}: ${(msgs as string[]).join(", ")}`;
+      });
+    if (fieldErrors.length > 0) throw new Error(fieldErrors.join(". "));
+
+    throw new Error(`Request failed: ${response.status}`);
   }
 
   if (response.status === 204) {

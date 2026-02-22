@@ -13,17 +13,13 @@ import {
 // Constants
 // ---------------------------------------------------------------------------
 const ROLE_STYLES: Record<string, string> = {
-  owner:   "bg-gold/15 text-gold border border-gold/30",
-  admin:   "bg-purple-900/40 text-purple-300 border border-purple-700/40",
-  manager: "bg-blue-900/40 text-blue-300 border border-blue-700/40",
-  teller:  "bg-emerald-900/40 text-emerald-400 border border-emerald-700/40",
+  owner: "bg-gold/15 text-gold border border-gold/30",
+  agent: "bg-emerald-900/40 text-emerald-400 border border-emerald-700/40",
 };
 
 const ROLE_HIERARCHY: Record<string, number> = {
-  owner: 4, admin: 3, manager: 2, teller: 1,
+  owner: 2, agent: 1,
 };
-
-const ALL_ROLES = ["admin", "manager", "teller"] as const;
 
 // ---------------------------------------------------------------------------
 // Avatar component
@@ -105,10 +101,23 @@ function ErrorBanner({ msg }: { msg: string }) {
 // Main page
 // ---------------------------------------------------------------------------
 export default function TeamPage() {
-  const token     = typeof window !== "undefined" ? localStorage.getItem("token")     || "" : "";
-  const companyId = typeof window !== "undefined" ? localStorage.getItem("companyId") || "" : "";
-  const myRole    = typeof window !== "undefined" ? localStorage.getItem("role")      || "" : "";
-  const myId      = typeof window !== "undefined" ? (() => { try { return JSON.parse(localStorage.getItem("membership") || "{}").id || ""; } catch { return ""; } })() : "";
+  // Use state so values are read after hydration and trigger re-renders
+  const [token, setToken] = useState("");
+  const [companyId, setCompanyId] = useState("");
+  const [myRole, setMyRole] = useState("");
+  const [myId, setMyId] = useState("");
+
+  useEffect(() => {
+    setToken(localStorage.getItem("token") || "");
+    setCompanyId(localStorage.getItem("companyId") || "");
+    setMyRole(localStorage.getItem("role") || "");
+    try {
+      const membership = JSON.parse(localStorage.getItem("membership") || "{}");
+      setMyId(membership.id || "");
+    } catch {
+      setMyId("");
+    }
+  }, []);
 
   const [members,  setMembers]  = useState<TeamMember[]>([]);
   const [loading,  setLoading]  = useState(true);
@@ -117,7 +126,7 @@ export default function TeamPage() {
   // --- Invite modal ---
   const [showInvite,    setShowInvite]    = useState(false);
   const [inviteEmail,   setInviteEmail]   = useState("");
-  const [inviteRole,    setInviteRole]    = useState("teller");
+  const [inviteRole,    setInviteRole]    = useState("agent");
   const [inviting,      setInviting]      = useState(false);
   const [inviteError,   setInviteError]   = useState("");
   const [inviteSuccess, setInviteSuccess] = useState("");
@@ -150,18 +159,14 @@ export default function TeamPage() {
 
   useEffect(() => { fetchMembers(); }, [fetchMembers]);
 
-  // Roles the current user can assign (strictly below their own level)
-  const assignableRoles = ALL_ROLES.filter(
-    (r) => ROLE_HIERARCHY[r] < (ROLE_HIERARCHY[myRole] ?? 0)
-  );
+  // Owner can invite agents
+  const canInvite = myRole === "owner";
 
   // Can the current user manage a given member?
   const canManageMember = (m: TeamMember) =>
     m.id !== myId &&
     m.role !== "owner" &&
-    ROLE_HIERARCHY[m.role] < (ROLE_HIERARCHY[myRole] ?? 0);
-
-  const canInvite = ["owner", "admin", "manager"].includes(myRole) && assignableRoles.length > 0;
+    myRole === "owner";
 
   // ---------------------------------------------------------------------------
   // Invite
@@ -172,10 +177,9 @@ export default function TeamPage() {
     setInviteError("");
     setInviteSuccess("");
     try {
-      await createInvitation(token, companyId, { email: inviteEmail.trim(), role: inviteRole });
+      await createInvitation(token, companyId, { email: inviteEmail.trim(), role: "agent" });
       setInviteSuccess(`Invitation sent to ${inviteEmail.trim()}.`);
       setInviteEmail("");
-      setInviteRole(assignableRoles[assignableRoles.length - 1] || "teller");
     } catch (err) {
       setInviteError(err instanceof Error ? err.message : "Failed to send invitation.");
     } finally {
@@ -199,7 +203,6 @@ export default function TeamPage() {
     setEditError("");
     try {
       const updated = await updateTeamMember(token, companyId, editTarget.id, {
-        role: editRole,
         is_active: editActive,
       });
       setMembers((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
@@ -271,14 +274,14 @@ export default function TeamPage() {
               setInviteSuccess("");
               setInviteError("");
               setInviteEmail("");
-              setInviteRole(assignableRoles[assignableRoles.length - 1] || "teller");
+              setInviteRole("agent");
             }}
             className="btn-primary inline-flex items-center gap-2 shrink-0"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Add New User
+            Add New Agent
           </button>
         )}
       </div>
@@ -331,10 +334,10 @@ export default function TeamPage() {
 
       {/* ── Invite modal ── */}
       {showInvite && (
-        <Modal title="Add New User" onClose={() => setShowInvite(false)}>
+        <Modal title="Add New Agent" onClose={() => setShowInvite(false)}>
           <div className="space-y-4">
             <p className="text-dark-200 text-sm">
-              An invitation email will be sent to the user with a link to create their account.
+              An invitation email will be sent to the agent with a link to create their account.
             </p>
             {inviteError   && <ErrorBanner msg={inviteError} />}
             {inviteSuccess && (
@@ -352,29 +355,18 @@ export default function TeamPage() {
               <input
                 type="email"
                 className="input-field"
-                placeholder="colleague@example.com"
+                placeholder="agent@example.com"
                 value={inviteEmail}
                 onChange={(e) => { setInviteEmail(e.target.value); setInviteError(""); }}
                 onKeyDown={(e) => e.key === "Enter" && handleInvite()}
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-200 mb-1.5">Role</label>
-              <select
-                className="input-field"
-                value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value)}
-              >
-                {assignableRoles.map((r) => (
-                  <option key={r} value={r}>
-                    {r.charAt(0).toUpperCase() + r.slice(1)}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-dark-300 mt-1">
-                {inviteRole === "teller"  && "Can process transactions and view customers."}
-                {inviteRole === "manager" && "Can approve transactions and manage tellers."}
-                {inviteRole === "admin"   && "Can manage team members and company settings."}
+            <div className="bg-dark-500 border border-dark-400 rounded-lg px-4 py-3">
+              <p className="text-sm text-dark-200">
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium mr-2 ${ROLE_STYLES.agent}`}>
+                  Agent
+                </span>
+                Can process transactions, view customers, and manage daily operations.
               </p>
             </div>
             <div className="flex gap-3 pt-2">
@@ -411,19 +403,13 @@ export default function TeamPage() {
 
             {editError && <ErrorBanner msg={editError} />}
 
-            <div>
-              <label className="block text-sm font-medium text-dark-200 mb-1.5">Role</label>
-              <select
-                className="input-field"
-                value={editRole}
-                onChange={(e) => setEditRole(e.target.value)}
-              >
-                {assignableRoles.map((r) => (
-                  <option key={r} value={r}>
-                    {r.charAt(0).toUpperCase() + r.slice(1)}
-                  </option>
-                ))}
-              </select>
+            <div className="bg-dark-500 border border-dark-400 rounded-lg px-4 py-3">
+              <p className="text-sm text-dark-200">
+                Role:{" "}
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${ROLE_STYLES[editTarget.role] || ""}`}>
+                  {editTarget.role}
+                </span>
+              </p>
             </div>
 
             <div>

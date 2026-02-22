@@ -61,10 +61,18 @@ export default function BalancesPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") || "" : "";
-  const companyId = typeof window !== "undefined" ? localStorage.getItem("companyId") || "" : "";
+  // Use state so values are read after hydration and trigger re-renders
+  const [token, setToken] = useState("");
+  const [companyId, setCompanyId] = useState("");
+
+  useEffect(() => {
+    setToken(localStorage.getItem("token") || "");
+    setCompanyId(localStorage.getItem("companyId") || "");
+    setRole(localStorage.getItem("role") || "");
+  }, []);
 
   const load = useCallback(async () => {
+    if (!token || !companyId) return;
     setLoading(true);
     try {
       const [memberData, balanceData] = await Promise.all([
@@ -81,9 +89,10 @@ export default function BalancesPage() {
   }, [token, companyId]);
 
   useEffect(() => {
-    setRole(localStorage.getItem("role") || "");
-    load();
-  }, [load]);
+    if (token && companyId) {
+      load();
+    }
+  }, [token, companyId, load]);
 
   // Group balances by agent
   const agentGroups: AgentBalanceGroup[] = members.map((member) => {
@@ -96,7 +105,7 @@ export default function BalancesPage() {
     return { member, balances: memberBalances };
   });
 
-  const canManage = ["owner", "admin"].includes(role);
+  const canManage = role === "owner";
 
   // Open morning float modal
   function openFloatModal(member: TeamMember) {
