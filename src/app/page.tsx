@@ -76,7 +76,7 @@ const steps = [
   {
     number: "02",
     title: "Set Up Your Team",
-    desc: "Invite tellers and managers, configure branches, set approval thresholds and fees.",
+    desc: "Invite agents to your team, configure branches, set approval thresholds and fees.",
   },
   {
     number: "03",

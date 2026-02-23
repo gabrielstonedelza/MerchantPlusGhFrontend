@@ -271,6 +271,31 @@ export async function createInvitation(
 }
 
 // ---------------------------------------------------------------------------
+// Accept Invitation (public — no auth required)
+// ---------------------------------------------------------------------------
+export interface AcceptInvitationData {
+  token: string;
+  full_name: string;
+  phone: string;
+  password: string;
+}
+
+export interface AcceptInvitationResponse {
+  message: string;
+  token: string;
+  user: User;
+}
+
+export async function acceptInvitation(
+  data: AcceptInvitationData
+): Promise<AcceptInvitationResponse> {
+  return apiRequest<AcceptInvitationResponse>("/api/v1/auth/invitations/accept/", {
+    method: "POST",
+    body: data,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Plans & Registration
 // ---------------------------------------------------------------------------
 export interface SubscriptionPlan {
