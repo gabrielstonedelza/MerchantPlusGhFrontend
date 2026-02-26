@@ -18,8 +18,9 @@ export class DashboardWebSocket {
   }
 
   connect(): void {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const url = `${protocol}//${window.location.host}/ws/admin/dashboard/?company_id=${this.companyId}`;
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const wsUrl = apiUrl.replace(/^http/, "ws");
+    const url = `${wsUrl}/ws/admin/dashboard/?company_id=${this.companyId}`;
 
     this.ws = new WebSocket(url);
 

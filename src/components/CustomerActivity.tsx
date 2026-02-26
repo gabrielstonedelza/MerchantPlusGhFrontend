@@ -84,14 +84,22 @@ function CustomerRow({
       }`}
     >
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-full bg-dark-500 flex items-center justify-center text-sm font-bold text-gold">
-          {cust.full_name
-            .split(" ")
-            .map((n) => n[0])
-            .join("")
-            .slice(0, 2)
-            .toUpperCase()}
-        </div>
+        {cust.photo_url ? (
+          <img
+            src={cust.photo_url}
+            alt={cust.full_name}
+            className="w-9 h-9 rounded-full object-cover ring-2 ring-dark-400"
+          />
+        ) : (
+          <div className="w-9 h-9 rounded-full bg-dark-500 flex items-center justify-center text-sm font-bold text-gold">
+            {cust.full_name
+              .split(" ")
+              .map((n) => n[0])
+              .join("")
+              .slice(0, 2)
+              .toUpperCase()}
+          </div>
+        )}
         <div>
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-dark-50">

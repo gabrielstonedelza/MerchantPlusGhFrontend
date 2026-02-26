@@ -468,9 +468,11 @@ export interface Customer {
   id: string;
   full_name: string;
   phone: string;
+  email: string | null;
   status: string;
   kyc_status: string;
   registered_by: string | null;
+  photo_url: string | null;
   created_at: string;
 }
 

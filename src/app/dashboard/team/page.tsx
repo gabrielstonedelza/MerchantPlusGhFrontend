@@ -139,7 +139,7 @@ export default function AgentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [token, companyId]);
+  }, [companyId]);
 
   useEffect(() => { fetchMembers(); }, [fetchMembers]);
 

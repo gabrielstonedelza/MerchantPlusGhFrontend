@@ -3,11 +3,9 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   getProviderBalances,
-  getTeamMembers,
   initializeBalances,
   adminAdjustBalance,
   ProviderBalance,
-  TeamMember,
 } from "@/lib/api";
 
 const PROVIDERS = [
@@ -32,28 +30,18 @@ const PROVIDER_COLORS: Record<string, string> = {
   cash: "text-gold bg-gold/10 border-gold/30",
 };
 
-interface AgentBalanceGroup {
-  member: TeamMember;
-  balances: Record<string, ProviderBalance>;
-}
-
-function initials(name: string) {
-  return name.split(" ").filter(Boolean).map((n) => n[0]).slice(0, 2).join("").toUpperCase();
-}
-
 export default function BalancesPage() {
-  const [members, setMembers] = useState<TeamMember[]>([]);
   const [balances, setBalances] = useState<ProviderBalance[]>([]);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState("");
 
   // Morning float modal
-  const [floatModal, setFloatModal] = useState<TeamMember | null>(null);
+  const [floatModal, setFloatModal] = useState(false);
   const [floatValues, setFloatValues] = useState<Record<string, string>>({});
   const [floatSaving, setFloatSaving] = useState(false);
 
   // Adjust modal
-  const [adjustModal, setAdjustModal] = useState<{ member: TeamMember; provider: string; current: string } | null>(null);
+  const [adjustModal, setAdjustModal] = useState<{ provider: string; current: string } | null>(null);
   const [adjustAmount, setAdjustAmount] = useState("");
   const [adjustOp, setAdjustOp] = useState<"add" | "subtract" | "set">("add");
   const [adjustSaving, setAdjustSaving] = useState(false);
@@ -61,23 +49,25 @@ export default function BalancesPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // Use state so values are read after hydration and trigger re-renders
   const [companyId, setCompanyId] = useState("");
+  const [userId, setUserId] = useState("");
 
   useEffect(() => {
     setCompanyId(localStorage.getItem("companyId") || "");
     setRole(localStorage.getItem("role") || "");
+    try {
+      const membership = JSON.parse(localStorage.getItem("membership") || "{}");
+      setUserId(membership.user || "");
+    } catch {
+      setUserId("");
+    }
   }, []);
 
   const load = useCallback(async () => {
     if (!companyId) return;
     setLoading(true);
     try {
-      const [memberData, balanceData] = await Promise.all([
-        getTeamMembers(companyId),
-        getProviderBalances(companyId),
-      ]);
-      setMembers(memberData.filter((m) => m.is_active));
+      const balanceData = await getProviderBalances(companyId);
       setBalances(balanceData);
     } catch {
       setError("Failed to load data.");
@@ -92,33 +82,39 @@ export default function BalancesPage() {
     }
   }, [companyId, load]);
 
-  // Group balances by agent
-  const agentGroups: AgentBalanceGroup[] = members.map((member) => {
-    const memberBalances: Record<string, ProviderBalance> = {};
-    for (const b of balances) {
-      if (b.user === member.user) {
-        memberBalances[b.provider] = b;
-      }
+  // Aggregate balances by provider
+  const providerTotals: Record<string, { balance: number; starting_balance: number }> = {};
+  for (const b of balances) {
+    if (!providerTotals[b.provider]) {
+      providerTotals[b.provider] = { balance: 0, starting_balance: 0 };
     }
-    return { member, balances: memberBalances };
-  });
+    providerTotals[b.provider].balance += parseFloat(b.balance || "0");
+    providerTotals[b.provider].starting_balance += parseFloat(b.starting_balance || "0");
+  }
 
+  const totalBalance = Object.values(providerTotals).reduce(
+    (sum, p) => sum + p.balance, 0
+  );
+
+  const hasExistingFloat = balances.length > 0;
   const canManage = role === "owner";
 
+  // Determine the userId to use for API calls (first balance's user, or logged-in user)
+  const targetUserId = balances.length > 0 ? balances[0].user : userId;
+
   // Open morning float modal
-  function openFloatModal(member: TeamMember) {
-    const group = agentGroups.find((g) => g.member.id === member.id);
+  function openFloatModal() {
     const initial: Record<string, string> = {};
     for (const p of PROVIDERS) {
-      initial[p.key] = group?.balances[p.key]?.balance ?? "0";
+      initial[p.key] = providerTotals[p.key]?.balance?.toString() ?? "0";
     }
     setFloatValues(initial);
-    setFloatModal(member);
+    setFloatModal(true);
     setError("");
   }
 
   async function saveFloat() {
-    if (!floatModal) return;
+    if (!targetUserId) return;
     setFloatSaving(true);
     setError("");
     try {
@@ -127,13 +123,13 @@ export default function BalancesPage() {
         const n = parseFloat(v);
         if (!isNaN(n) && n >= 0) numericBalances[k] = n;
       }
-      const updated = await initializeBalances(companyId, floatModal.user, numericBalances);
+      const updated = await initializeBalances(companyId, targetUserId, numericBalances);
       setBalances((prev) => {
-        const next = prev.filter((b) => b.user !== floatModal.user);
+        const next = prev.filter((b) => b.user !== targetUserId);
         return [...next, ...updated];
       });
-      setSuccess(`Morning float set for ${floatModal.user_full_name}`);
-      setFloatModal(null);
+      setSuccess("Morning float updated successfully");
+      setFloatModal(false);
       setTimeout(() => setSuccess(""), 3000);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to save float.");
@@ -143,15 +139,15 @@ export default function BalancesPage() {
   }
 
   // Open adjust modal
-  function openAdjustModal(member: TeamMember, provider: string, current: string) {
-    setAdjustModal({ member, provider, current });
+  function openAdjustModal(provider: string, current: string) {
+    setAdjustModal({ provider, current });
     setAdjustAmount("");
     setAdjustOp("add");
     setError("");
   }
 
   async function saveAdjust() {
-    if (!adjustModal) return;
+    if (!adjustModal || !targetUserId) return;
     const amt = parseFloat(adjustAmount);
     if (isNaN(amt) || amt < 0) {
       setError("Enter a valid amount.");
@@ -161,10 +157,10 @@ export default function BalancesPage() {
     setError("");
     try {
       const updated = await adminAdjustBalance(
-        companyId, adjustModal.member.user, adjustModal.provider, amt, adjustOp
+        companyId, targetUserId, adjustModal.provider, amt, adjustOp
       );
       setBalances((prev) => {
-        const idx = prev.findIndex((b) => b.user === adjustModal.member.user && b.provider === adjustModal.provider);
+        const idx = prev.findIndex((b) => b.user === targetUserId && b.provider === adjustModal.provider);
         if (idx >= 0) {
           const next = [...prev];
           next[idx] = updated;
@@ -172,7 +168,7 @@ export default function BalancesPage() {
         }
         return [...prev, updated];
       });
-      setSuccess(`Balance updated for ${adjustModal.member.user_full_name}`);
+      setSuccess("Balance updated successfully");
       setAdjustModal(null);
       setTimeout(() => setSuccess(""), 3000);
     } catch (e: unknown) {
@@ -195,11 +191,19 @@ export default function BalancesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-dark-50">Agent Balances</h1>
+          <h1 className="text-2xl font-bold text-dark-50">Balances</h1>
           <p className="text-dark-200 text-sm mt-1">
-            Set morning floats and manage provider balances for each agent
+            Manage morning floats and track provider balance deductions
           </p>
         </div>
+        {canManage && (
+          <button
+            onClick={openFloatModal}
+            className="btn-primary text-sm px-4 py-2"
+          >
+            {hasExistingFloat ? "Update Morning Float" : "Set Morning Float"}
+          </button>
+        )}
       </div>
 
       {success && (
@@ -213,109 +217,71 @@ export default function BalancesPage() {
         </div>
       )}
 
-      {agentGroups.length === 0 ? (
-        <div className="card flex flex-col items-center justify-center py-16 text-center">
-          <p className="text-dark-300 text-sm">No active agents found.</p>
+      {/* Total balance */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="text-xs text-dark-300">Total Balance</p>
+            <p className="text-2xl font-bold text-dark-50">
+              GHS {totalBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </p>
+          </div>
         </div>
-      ) : (
-        <div className="space-y-4">
-          {agentGroups.map(({ member, balances: agentBal }) => {
-            const totalBalance = Object.values(agentBal).reduce(
-              (sum, b) => sum + parseFloat(b.balance || "0"), 0
-            );
+
+        {/* Provider balances grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {PROVIDERS.map((p) => {
+            const totals = providerTotals[p.key];
+            const current = totals?.balance ?? 0;
+            const starting = totals?.starting_balance ?? 0;
+            const diff = current - starting;
+            const colorCls = PROVIDER_COLORS[p.key] || "text-dark-200 bg-dark-500 border-dark-400";
+
             return (
-              <div key={member.id} className="card">
-                {/* Agent header */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    {member.user_avatar ? (
-                      <img src={member.user_avatar} alt={member.user_full_name}
-                        className="w-10 h-10 rounded-full object-cover" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center">
-                        <span className="text-gold text-sm font-bold">{initials(member.user_full_name)}</span>
-                      </div>
-                    )}
-                    <div>
-                      <p className="text-sm font-semibold text-dark-50">{member.user_full_name}</p>
-                      <p className="text-xs text-dark-300 capitalize">{member.role}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <p className="text-xs text-dark-300">Total Balance</p>
-                      <p className="text-sm font-bold text-dark-50">
-                        GHS {totalBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                      </p>
-                    </div>
-                    {canManage && (
-                      <button
-                        onClick={() => openFloatModal(member)}
-                        className="btn-primary text-xs px-3 py-1.5"
-                      >
-                        Set Morning Float
-                      </button>
-                    )}
-                  </div>
+              <div key={p.key}
+                className={`relative rounded-lg border p-3 ${colorCls}`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold">{p.label}</span>
+                  {canManage && (
+                    <button
+                      onClick={() => openAdjustModal(p.key, current.toString())}
+                      className="opacity-60 hover:opacity-100 transition-opacity"
+                      title="Adjust balance"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
-
-                {/* Provider balances grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {PROVIDERS.map((p) => {
-                    const bal = agentBal[p.key];
-                    const current = parseFloat(bal?.balance || "0");
-                    const starting = parseFloat(bal?.starting_balance || "0");
-                    const diff = current - starting;
-                    const colorCls = PROVIDER_COLORS[p.key] || "text-dark-200 bg-dark-500 border-dark-400";
-
-                    return (
-                      <div key={p.key}
-                        className={`relative rounded-lg border p-3 ${colorCls}`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-semibold">{p.label}</span>
-                          {canManage && (
-                            <button
-                              onClick={() => openAdjustModal(member, p.key, bal?.balance || "0")}
-                              className="opacity-60 hover:opacity-100 transition-opacity"
-                              title="Adjust balance"
-                            >
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
-                            </button>
-                          )}
-                        </div>
-                        <p className="text-base font-bold">
-                          {current.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                        </p>
-                        {bal && (
-                          <p className={`text-[10px] mt-0.5 ${diff < 0 ? "text-red-400" : "text-emerald-400"}`}>
-                            {diff >= 0 ? "+" : ""}{diff.toLocaleString(undefined, { maximumFractionDigits: 0 })} from start
-                          </p>
-                        )}
-                        {!bal && (
-                          <p className="text-[10px] mt-0.5 opacity-50">Not set</p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                <p className="text-base font-bold">
+                  {current.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </p>
+                {totals ? (
+                  <p className={`text-[10px] mt-0.5 ${diff < 0 ? "text-red-400" : "text-emerald-400"}`}>
+                    {diff >= 0 ? "+" : ""}{diff.toLocaleString(undefined, { maximumFractionDigits: 0 })} from start
+                  </p>
+                ) : (
+                  <p className="text-[10px] mt-0.5 opacity-50">Not set</p>
+                )}
               </div>
             );
           })}
         </div>
-      )}
+      </div>
 
       {/* Morning Float Modal */}
       {floatModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-dark-600 border border-dark-400 rounded-2xl w-full max-w-lg shadow-2xl">
             <div className="p-6 border-b border-dark-400">
-              <h2 className="text-lg font-semibold text-dark-50">Set Morning Float</h2>
+              <h2 className="text-lg font-semibold text-dark-50">
+                {hasExistingFloat ? "Update Morning Float" : "Set Morning Float"}
+              </h2>
               <p className="text-xs text-dark-300 mt-0.5">
-                {floatModal.user_full_name} — enter starting balances for today
+                Enter starting balances for today
               </p>
             </div>
             <div className="p-6 space-y-3 max-h-[60vh] overflow-y-auto">
@@ -343,11 +309,11 @@ export default function BalancesPage() {
               )}
             </div>
             <div className="p-6 border-t border-dark-400 flex gap-3 justify-end">
-              <button onClick={() => setFloatModal(null)} className="btn-secondary text-sm px-4 py-2">
+              <button onClick={() => setFloatModal(false)} className="btn-secondary text-sm px-4 py-2">
                 Cancel
               </button>
               <button onClick={saveFloat} disabled={floatSaving} className="btn-primary text-sm px-6 py-2">
-                {floatSaving ? "Saving…" : "Set Float"}
+                {floatSaving ? "Saving…" : hasExistingFloat ? "Update Float" : "Set Float"}
               </button>
             </div>
           </div>
@@ -361,7 +327,7 @@ export default function BalancesPage() {
             <div className="p-6 border-b border-dark-400">
               <h2 className="text-lg font-semibold text-dark-50">Adjust Balance</h2>
               <p className="text-xs text-dark-300 mt-0.5">
-                {adjustModal.member.user_full_name} — {PROVIDERS.find((p) => p.key === adjustModal.provider)?.label}
+                {PROVIDERS.find((p) => p.key === adjustModal.provider)?.label}
               </p>
               <p className="text-xs text-dark-400 mt-1">
                 Current: GHS {parseFloat(adjustModal.current).toLocaleString(undefined, { maximumFractionDigits: 0 })}
