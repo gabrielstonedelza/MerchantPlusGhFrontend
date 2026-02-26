@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import { logout } from "@/lib/api";
 
 const NAV_LINKS = [
   {
@@ -12,6 +13,16 @@ const NAV_LINKS = [
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
           d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/requests",
+    label: "Requests",
+    icon: (
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
       </svg>
     ),
   },
@@ -27,7 +38,7 @@ const NAV_LINKS = [
   },
   {
     href: "/dashboard/team",
-    label: "Team",
+    label: "Agents",
     icon: (
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -46,8 +57,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [role, setRole] = useState("");
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
+    const storedRole = localStorage.getItem("role") || "";
+    if (!storedRole) {
+      router.replace("/login");
+      return;
+    }
+    if (storedRole !== "owner") {
+      ["user", "membership", "companyId", "companyName", "role", "companies"].forEach(
+        (k) => localStorage.removeItem(k)
+      );
       router.replace("/login");
       return;
     }
@@ -59,11 +77,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       setUserName("Admin");
     }
     setCompanyName(localStorage.getItem("companyName") || "");
-    setRole(localStorage.getItem("role") || "");
+    setRole(storedRole);
   }, [router]);
 
-  function handleLogout() {
-    ["token", "user", "membership", "companyId", "companyName", "role", "companies"].forEach(
+  async function handleLogout() {
+    try {
+      await logout();
+    } catch {
+      // Proceed with local logout even if server call fails
+    }
+    ["user", "membership", "companyId", "companyName", "role", "companies"].forEach(
       (k) => localStorage.removeItem(k)
     );
     router.replace("/login");
@@ -85,9 +108,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {/* Left: Logo + company */}
             <div className="flex items-center gap-4">
               <Link href="/dashboard" className="flex items-center gap-2 shrink-0">
-                <div className="w-8 h-8 rounded-lg bg-gold flex items-center justify-center">
-                  <span className="text-dark text-sm font-black leading-none">M+</span>
-                </div>
+                <img src="/logo.png" alt="MerchantPlus" className="w-8 h-8 rounded-lg object-cover" />
                 <span className="text-lg font-bold text-gold hidden sm:block">Merchant+</span>
               </Link>
               {companyName && (

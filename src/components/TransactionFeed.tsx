@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Transaction } from "@/lib/api";
+import { AgentRequest } from "@/lib/api";
 
 interface Props {
-  transactions: Transaction[];
+  transactions: AgentRequest[];
 }
 
 export default function TransactionFeed({ transactions }: Props) {
@@ -34,10 +34,8 @@ export default function TransactionFeed({ transactions }: Props) {
     <div className="card">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-dark-50">
-          Transaction Feed
-          <span className="text-sm font-normal text-dark-200 ml-2">
-            (live)
-          </span>
+          Request Feed
+          <span className="text-sm font-normal text-dark-200 ml-2">(live)</span>
         </h2>
         <div className="flex gap-2">
           {["all", "deposit", "withdrawal", "transfer"].map((f) => (
@@ -58,14 +56,10 @@ export default function TransactionFeed({ transactions }: Props) {
 
       <div className="space-y-2 max-h-[500px] overflow-y-auto">
         {filtered.length === 0 ? (
-          <p className="text-dark-300 text-center py-8">No transactions yet</p>
+          <p className="text-dark-300 text-center py-8">No requests yet</p>
         ) : (
           filtered.slice(0, 50).map((tx) => (
-            <TransactionRow
-              key={tx.id}
-              transaction={tx}
-              isNew={newIds.has(tx.id)}
-            />
+            <RequestRow key={tx.id} request={tx} isNew={newIds.has(tx.id)} />
           ))
         )}
       </div>
@@ -73,24 +67,25 @@ export default function TransactionFeed({ transactions }: Props) {
   );
 }
 
-function TransactionRow({
-  transaction: tx,
+function RequestRow({
+  request: tx,
   isNew,
 }: {
-  transaction: Transaction;
+  request: AgentRequest;
   isNew: boolean;
 }) {
   const isDeposit = tx.transaction_type === "deposit";
   const isWithdrawal = tx.transaction_type === "withdrawal";
 
-  const statusBadge = {
+  const statusBadge: Record<string, string> = {
     completed: "badge-completed",
     pending: "badge-pending",
-    rejected: "bg-red-900/40 text-red-400 text-xs font-medium px-2.5 py-0.5 rounded-full border border-red-800/30",
-    reversed: "bg-dark-500 text-dark-200 text-xs font-medium px-2.5 py-0.5 rounded-full border border-dark-400",
+    rejected:
+      "bg-red-900/40 text-red-400 text-xs font-medium px-2.5 py-0.5 rounded-full border border-red-800/30",
     approved: "badge-completed",
-    failed: "bg-red-900/40 text-red-400 text-xs font-medium px-2.5 py-0.5 rounded-full border border-red-800/30",
-  }[tx.status] || "badge-pending";
+    failed:
+      "bg-red-900/40 text-red-400 text-xs font-medium px-2.5 py-0.5 rounded-full border border-red-800/30",
+  };
 
   return (
     <div
@@ -114,14 +109,11 @@ function TransactionRow({
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-dark-50">
-              {tx.reference}
-            </span>
-            <span className={statusBadge}>{tx.status}</span>
+            <span className="text-sm font-medium text-dark-50">{tx.reference}</span>
+            <span className={statusBadge[tx.status] ?? "badge-pending"}>{tx.status}</span>
           </div>
           <p className="text-xs text-dark-300">
             {tx.customer_name || "Walk-in"} &middot;{" "}
-            {tx.initiated_by_name || "System"} &middot;{" "}
             {tx.channel.replace("_", " ")}
           </p>
         </div>
@@ -133,11 +125,11 @@ function TransactionRow({
           }`}
         >
           {isDeposit ? "+" : isWithdrawal ? "-" : ""}
-          {tx.currency} {Number(tx.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          GHS {Number(tx.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
         </p>
-        {tx.created_at && (
+        {tx.requested_at && (
           <p className="text-[10px] text-dark-300">
-            {new Date(tx.created_at).toLocaleTimeString()}
+            {new Date(tx.requested_at).toLocaleTimeString()}
           </p>
         )}
       </div>

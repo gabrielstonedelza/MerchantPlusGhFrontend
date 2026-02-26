@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { acceptInvitation } from "@/lib/api";
 
 function AcceptInviteForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
 
@@ -131,17 +130,39 @@ function AcceptInviteForm() {
                 />
               </svg>
             </div>
-            <h1 className="text-3xl font-bold mb-3">Welcome aboard!</h1>
+            <h1 className="text-3xl font-bold mb-3">Registration Successful!</h1>
             <p className="text-dark-200 mb-6">
-              Your account has been created successfully. You can now sign in to
-              access your dashboard.
+              Your account has been created successfully. Download the
+              Merchant+ mobile app to start processing transactions.
             </p>
-            <Link
-              href="/login"
-              className="btn-primary px-8 py-3 text-base w-full block text-center"
-            >
-              Continue to Sign In
-            </Link>
+            <div className="bg-dark-600 border border-dark-400/50 rounded-xl px-5 py-4 mb-6">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-lg bg-gold/10 border border-gold/20 flex items-center justify-center shrink-0">
+                  <svg className="w-5 h-5 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div className="text-left">
+                  <p className="text-dark-50 text-sm font-semibold">Merchant+ Mobile App</p>
+                  <p className="text-dark-300 text-xs">Available on Google Play Store</p>
+                </div>
+              </div>
+              <a
+                href="https://play.google.com/store"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-primary w-full py-3 text-base inline-flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M3.609 1.814L13.792 12 3.61 22.186a.996.996 0 01-.61-.92V2.734a1 1 0 01.609-.92zm10.89 10.893l2.302 2.302-10.937 6.333 8.635-8.635zm3.199-3.199l2.302 2.302a1 1 0 010 1.38l-2.302 2.302L15.39 12l2.308-2.492zM5.864 2.658L16.8 8.99l-2.302 2.302-8.634-8.634z" />
+                </svg>
+                Download on Google Play
+              </a>
+            </div>
+            <p className="text-dark-300 text-xs">
+              Use your email and password to sign in on the mobile app.
+            </p>
           </div>
         </div>
       </div>
@@ -336,9 +357,7 @@ function Navbar() {
     <nav className="border-b border-dark-400/50 bg-dark-900/80 backdrop-blur-md">
       <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gold flex items-center justify-center shadow-lg">
-            <span className="text-dark font-black text-sm leading-none">M+</span>
-          </div>
+          <img src="/logo.png" alt="MerchantPlus" className="w-8 h-8 rounded-lg object-cover" />
           <span className="font-bold text-lg tracking-tight">MerchantPlus</span>
         </Link>
         <Link

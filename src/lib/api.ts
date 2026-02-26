@@ -1,9 +1,16 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+export class ApiError extends Error {
+  data: Record<string, unknown>;
+  constructor(message: string, data: Record<string, unknown> = {}) {
+    super(message);
+    this.data = data;
+  }
+}
+
 interface RequestOptions {
   method?: string;
   body?: unknown;
-  token?: string;
   companyId?: string;
 }
 
@@ -11,15 +18,12 @@ export async function apiRequest<T = unknown>(
   endpoint: string,
   options: RequestOptions = {}
 ): Promise<T> {
-  const { method = "GET", body, token, companyId } = options;
+  const { method = "GET", body, companyId } = options;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
 
-  if (token) {
-    headers["Authorization"] = `Token ${token}`;
-  }
   if (companyId) {
     headers["X-Company-ID"] = companyId;
   }
@@ -27,27 +31,25 @@ export async function apiRequest<T = unknown>(
   const response = await fetch(`${API_URL}${endpoint}`, {
     method,
     headers,
+    credentials: "include",
     body: body ? JSON.stringify(body) : undefined,
   });
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
 
-    // DRF returns { error: "..." } for custom errors, { detail: "..." } for
-    // permission/auth errors, or { field: ["msg", ...], ... } for validation.
-    if (error.error) throw new Error(error.error);
-    if (error.detail) throw new Error(error.detail);
+    if (error.error) throw new ApiError(error.error, error);
+    if (error.detail) throw new ApiError(error.detail, error);
 
-    // Handle DRF field-level validation errors: { field: ["msg"] }
     const fieldErrors = Object.entries(error)
       .filter(([, v]) => Array.isArray(v))
       .map(([field, msgs]) => {
         const label = field.replace(/_/g, " ");
         return `${label}: ${(msgs as string[]).join(", ")}`;
       });
-    if (fieldErrors.length > 0) throw new Error(fieldErrors.join(". "));
+    if (fieldErrors.length > 0) throw new ApiError(fieldErrors.join(". "), error);
 
-    throw new Error(`Request failed: ${response.status}`);
+    throw new ApiError(`Request failed: ${response.status}`, error);
   }
 
   if (response.status === 204) {
@@ -61,11 +63,6 @@ export async function apiRequest<T = unknown>(
 // Auth
 // ---------------------------------------------------------------------------
 
-/**
- * Login response can be one of two shapes:
- * 1. Success: { token, user, membership, companies }
- * 2. Company selection required: { requires_company_selection, message, companies }
- */
 export interface LoginSuccessResponse {
   token: string;
   user: User;
@@ -123,39 +120,55 @@ export async function verify2FA(
   });
 }
 
-export async function logout(token: string) {
-  return apiRequest("/api/v1/auth/logout/", { method: "POST", token });
+export async function logout() {
+  return apiRequest("/api/v1/auth/logout/", { method: "POST" });
 }
 
-export async function getMe(token: string, companyId: string) {
+export async function getMe(companyId: string) {
   return apiRequest<{ user: User; memberships: Membership[] }>("/api/v1/auth/me/", {
-    token,
     companyId,
   });
 }
 
 // ---------------------------------------------------------------------------
-// Transactions
+// Agent Requests (formerly Transactions)
 // ---------------------------------------------------------------------------
-export async function getTransactions(token: string, companyId: string) {
-  return apiRequest<Transaction[]>("/api/v1/transactions/", {
-    token,
+
+export async function getTransactions(companyId: string) {
+  return apiRequest<AgentRequest[]>("/api/v1/transactions/", { companyId });
+}
+
+export async function getPendingRequests(companyId: string) {
+  return apiRequest<AgentRequest[]>("/api/v1/transactions/pending/", { companyId });
+}
+
+export async function getRequestDetail(companyId: string, requestId: string) {
+  return apiRequest<AgentRequest>(`/api/v1/transactions/${requestId}/`, { companyId });
+}
+
+export async function approveRequest(
+  companyId: string,
+  requestId: string,
+  action: "approve" | "reject",
+  rejectionReason?: string
+) {
+  return apiRequest<AgentRequest>(`/api/v1/transactions/${requestId}/approve/`, {
+    method: "POST",
     companyId,
+    body: { action, rejection_reason: rejectionReason || "" },
   });
 }
 
 // ---------------------------------------------------------------------------
 // Provider Balances
 // ---------------------------------------------------------------------------
-export async function getProviderBalances(token: string, companyId: string) {
+export async function getProviderBalances(companyId: string) {
   return apiRequest<ProviderBalance[]>("/api/v1/transactions/balances/", {
-    token,
     companyId,
   });
 }
 
 export async function initializeBalances(
-  token: string,
   companyId: string,
   userId: string,
   balances: Record<string, number>
@@ -164,7 +177,6 @@ export async function initializeBalances(
     "/api/v1/transactions/balances/initialize/",
     {
       method: "POST",
-      token,
       companyId,
       body: { user: userId, balances },
     }
@@ -172,7 +184,6 @@ export async function initializeBalances(
 }
 
 export async function adminAdjustBalance(
-  token: string,
   companyId: string,
   userId: string,
   provider: string,
@@ -181,7 +192,6 @@ export async function adminAdjustBalance(
 ) {
   return apiRequest<ProviderBalance>("/api/v1/transactions/balances/admin-adjust/", {
     method: "POST",
-    token,
     companyId,
     body: { user: userId, provider, amount, operation },
   });
@@ -190,9 +200,8 @@ export async function adminAdjustBalance(
 // ---------------------------------------------------------------------------
 // Customers
 // ---------------------------------------------------------------------------
-export async function getCustomers(token: string, companyId: string) {
+export async function getCustomers(companyId: string) {
   return apiRequest<Customer[]>("/api/v1/customers/", {
-    token,
     companyId,
   });
 }
@@ -200,9 +209,8 @@ export async function getCustomers(token: string, companyId: string) {
 // ---------------------------------------------------------------------------
 // Reports
 // ---------------------------------------------------------------------------
-export async function getDashboard(token: string, companyId: string) {
+export async function getDashboard(companyId: string) {
   return apiRequest<DashboardData>("/api/v1/reports/dashboard/", {
-    token,
     companyId,
   });
 }
@@ -227,44 +235,48 @@ export interface TeamMember {
   deactivated_at: string | null;
 }
 
-export async function getTeamMembers(token: string, companyId: string): Promise<TeamMember[]> {
-  return apiRequest<TeamMember[]>("/api/v1/auth/team/", { token, companyId });
+export async function getTeamMembers(companyId: string): Promise<TeamMember[]> {
+  return apiRequest<TeamMember[]>("/api/v1/auth/team/", { companyId });
 }
 
 export async function updateTeamMember(
-  token: string,
   companyId: string,
   memberId: string,
-  data: { role?: string; branch?: string | null; is_active?: boolean }
+  data: { role?: string; branch?: string | null; is_active?: boolean; full_name?: string; email?: string; phone?: string }
 ): Promise<TeamMember> {
   return apiRequest<TeamMember>(`/api/v1/auth/team/${memberId}/update/`, {
     method: "PATCH",
-    token,
     companyId,
     body: data,
   });
 }
 
 export async function deactivateTeamMember(
-  token: string,
   companyId: string,
   memberId: string
 ): Promise<{ message: string }> {
   return apiRequest<{ message: string }>(`/api/v1/auth/team/${memberId}/deactivate/`, {
     method: "POST",
-    token,
+    companyId,
+  });
+}
+
+export async function deleteTeamMember(
+  companyId: string,
+  memberId: string
+): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>(`/api/v1/auth/team/${memberId}/delete/`, {
+    method: "DELETE",
     companyId,
   });
 }
 
 export async function createInvitation(
-  token: string,
   companyId: string,
   data: { email: string; role: string; branch?: string }
 ): Promise<{ id: string; email: string; role: string; token: string }> {
   return apiRequest(`/api/v1/auth/invitations/`, {
     method: "POST",
-    token,
     companyId,
     body: data,
   });
@@ -321,7 +333,6 @@ export async function getPlans(): Promise<SubscriptionPlan[]> {
   const res = await apiRequest<SubscriptionPlan[] | { results: SubscriptionPlan[] }>(
     "/api/v1/plans/"
   );
-  // Handle both plain array (pagination_class=None) and DRF paginated response
   return Array.isArray(res) ? res : res.results;
 }
 
@@ -348,7 +359,7 @@ export async function registerCompany(data: CompanyRegistrationData): Promise<vo
 }
 
 // ---------------------------------------------------------------------------
-// Types — match actual Django backend responses
+// Types
 // ---------------------------------------------------------------------------
 export interface User {
   id: string;
@@ -386,20 +397,60 @@ export interface Membership {
   deactivated_at: string | null;
 }
 
-export interface Transaction {
+export interface BankDepositDetail {
+  bank_name: string;
+  account_number: string;
+  account_name: string;
+  depositor_name: string;
+  slip_number: string;
+  slip_image: string | null;
+}
+
+export interface MoMoDetail {
+  network: string;
+  service_type: string;
+  sender_number: string;
+  receiver_number: string;
+  momo_reference: string;
+}
+
+export interface CashDetail {
+  d_200: number;
+  d_100: number;
+  d_50: number;
+  d_20: number;
+  d_10: number;
+  d_5: number;
+  d_2: number;
+  d_1: number;
+  denomination_total: string;
+}
+
+/** Agent request — every financial operation submitted via the mobile app. */
+export interface AgentRequest {
   id: string;
   reference: string;
+  company: string;
+  customer: string | null;
+  customer_name: string | null;
   transaction_type: string;
   channel: string;
   status: string;
   amount: string;
   fee: string;
-  net_amount: string;
-  currency: string;
-  customer_name: string | null;
-  initiated_by_name: string | null;
-  created_at: string;
+  requires_approval: boolean;
+  approved_by: string | null;
+  approved_by_name: string | null;
+  approved_at: string | null;
+  rejection_reason: string;
+  bank_deposit_detail: BankDepositDetail | null;
+  momo_detail: MoMoDetail | null;
+  cash_detail: CashDetail | null;
+  requested_at: string;
 }
+
+/** Alias kept for backward-compatibility with existing components. */
+export type Transaction = AgentRequest;
 
 export interface ProviderBalance {
   id: string;
@@ -425,20 +476,14 @@ export interface Customer {
 
 /** Matches the actual response from /api/v1/reports/dashboard/ */
 export interface DashboardData {
-  total_transactions_today: number;
+  total_requests_today: number;
   total_deposits_today: string;
   total_withdrawals_today: string;
   total_fees_today: string;
   pending_approvals: number;
   total_customers: number;
   total_active_users: number;
-  transactions_by_channel: Record<string, number>;
-  transactions_by_status: Record<string, number>;
-  recent_transactions: Transaction[];
-  top_agents: Array<{
-    user_id: string;
-    name: string;
-    transaction_count: number;
-    total_volume: string;
-  }>;
+  requests_by_channel: Record<string, number>;
+  requests_by_status: Record<string, number>;
+  recent_requests: AgentRequest[];
 }

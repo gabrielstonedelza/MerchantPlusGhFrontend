@@ -6,7 +6,8 @@ import {
   getTransactions,
   getProviderBalances,
   getDashboard,
-  Transaction,
+  getPendingRequests,
+  AgentRequest,
   ProviderBalance,
   DashboardData,
 } from "@/lib/api";
@@ -17,45 +18,44 @@ import UserActivity from "@/components/UserActivity";
 import ConnectionStatus from "@/components/ConnectionStatus";
 
 export default function DashboardPage() {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactions, setTransactions] = useState<AgentRequest[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<AgentRequest[]>([]);
   const [balances, setBalances] = useState<ProviderBalance[]>([]);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [wsStatus, setWsStatus] = useState<string>("connecting");
   const [loading, setLoading] = useState(true);
   const wsRef = useRef<DashboardWebSocket | null>(null);
 
-  // Use state so values are read after hydration and trigger re-renders
-  const [token, setToken] = useState("");
   const [companyId, setCompanyId] = useState("");
 
   useEffect(() => {
-    const storedToken = localStorage.getItem("token") || "";
     const storedCompanyId = localStorage.getItem("companyId") || "";
-    setToken(storedToken);
     setCompanyId(storedCompanyId);
   }, []);
 
   const fetchInitialData = useCallback(async () => {
-    if (!token || !companyId) return;
+    if (!companyId) return;
 
     try {
-      const [txData, balData, dashData] = await Promise.all([
-        getTransactions(token, companyId),
-        getProviderBalances(token, companyId),
-        getDashboard(token, companyId),
+      const [txData, balData, dashData, pendingData] = await Promise.all([
+        getTransactions(companyId),
+        getProviderBalances(companyId),
+        getDashboard(companyId),
+        getPendingRequests(companyId),
       ]);
       setTransactions(txData);
       setBalances(balData);
       setDashboard(dashData);
+      setPendingRequests(pendingData);
     } catch (err) {
       console.error("Failed to fetch initial data:", err);
     } finally {
       setLoading(false);
     }
-  }, [token, companyId]);
+  }, [companyId]);
 
   const handleTransactionUpdate = useCallback((data: WebSocketMessage) => {
-    const tx = data.transaction as Transaction;
+    const tx = data.transaction as AgentRequest;
     setTransactions((prev) => {
       const existing = prev.findIndex((t) => t.id === tx.id);
       if (existing >= 0) {
@@ -64,6 +64,20 @@ export default function DashboardPage() {
         return updated;
       }
       return [tx, ...prev];
+    });
+    // Keep pending list in sync
+    setPendingRequests((prev) => {
+      if (tx.status === "pending") {
+        const existing = prev.findIndex((t) => t.id === tx.id);
+        if (existing >= 0) {
+          const updated = [...prev];
+          updated[existing] = tx;
+          return updated;
+        }
+        return [tx, ...prev];
+      }
+      // Remove from pending if status changed
+      return prev.filter((t) => t.id !== tx.id);
     });
   }, []);
 
@@ -137,11 +151,11 @@ export default function DashboardPage() {
   );
 
   useEffect(() => {
-    if (!token || !companyId) return;
+    if (!companyId) return;
 
     fetchInitialData();
 
-    const ws = new DashboardWebSocket(companyId, token);
+    const ws = new DashboardWebSocket(companyId);
     wsRef.current = ws;
 
     ws.on("connection", (data) => {
@@ -158,7 +172,6 @@ export default function DashboardPage() {
       ws.disconnect();
     };
   }, [
-    token,
     companyId,
     fetchInitialData,
     handleInitialState,
@@ -213,8 +226,8 @@ export default function DashboardPage() {
       {dashboard && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <KPICard
-            label="Today's Transactions"
-            value={dashboard.total_transactions_today}
+            label="Today's Requests"
+            value={dashboard.total_requests_today}
           />
           <KPICard
             label="Deposits Today"
@@ -239,6 +252,9 @@ export default function DashboardPage() {
 
       <ProviderBalanceCards balances={balances} />
 
+      {/* Pending Requests Panel */}
+      <PendingRequestsPanel requests={pendingRequests} />
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <TransactionFeed transactions={transactions} />
@@ -249,6 +265,115 @@ export default function DashboardPage() {
       </div>
     </div>
   );
+}
+
+function PendingRequestsPanel({ requests }: { requests: AgentRequest[] }) {
+  const sorted = [...requests].sort(
+    (a, b) => new Date(b.requested_at).getTime() - new Date(a.requested_at).getTime()
+  );
+
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-dark-50">Pending Approvals</h2>
+          {requests.length > 0 && (
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
+              {requests.length}
+            </span>
+          )}
+        </div>
+        <Link
+          href="/dashboard/requests"
+          className="text-xs text-dark-300 hover:text-gold transition-colors"
+        >
+          View all →
+        </Link>
+      </div>
+
+      {sorted.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-10 text-center">
+          <div className="w-10 h-10 rounded-full bg-dark-500 border border-dark-400 flex items-center justify-center mb-3">
+            <svg className="w-5 h-5 text-dark-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <p className="text-dark-300 text-sm">No pending requests</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {sorted.slice(0, 8).map((req) => (
+            <Link
+              key={req.id}
+              href={`/dashboard/requests/${req.id}`}
+              className="flex items-center justify-between p-3 rounded-lg bg-dark-500/50 border border-dark-400 hover:bg-dark-500 hover:border-dark-300 transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <TypeIcon type={req.transaction_type} />
+                <div>
+                  <p className="text-sm font-medium text-dark-50 group-hover:text-white">
+                    {req.customer_name || "Walk-in"}
+                  </p>
+                  <p className="text-xs text-dark-300 capitalize">
+                    {req.transaction_type} &middot; {req.channel.replace("_", " ")}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className={`text-sm font-bold ${
+                  req.transaction_type === "deposit"
+                    ? "text-emerald-400"
+                    : req.transaction_type === "withdrawal"
+                    ? "text-red-400"
+                    : "text-dark-50"
+                }`}>
+                  GHS {Number(req.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </p>
+                <p className="text-[10px] text-dark-300">
+                  {timeAgo(req.requested_at)}
+                </p>
+              </div>
+            </Link>
+          ))}
+          {sorted.length > 8 && (
+            <Link
+              href="/dashboard/requests"
+              className="block text-center text-xs text-dark-300 hover:text-gold py-2 transition-colors"
+            >
+              +{sorted.length - 8} more pending requests
+            </Link>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TypeIcon({ type }: { type: string }) {
+  const isDeposit = type === "deposit";
+  const isWithdrawal = type === "withdrawal";
+  return (
+    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${
+      isDeposit
+        ? "bg-emerald-900/50 text-emerald-400"
+        : isWithdrawal
+        ? "bg-red-900/50 text-red-400"
+        : "bg-blue-900/50 text-blue-400"
+    }`}>
+      {isDeposit ? "D" : isWithdrawal ? "W" : "T"}
+    </div>
+  );
+}
+
+function timeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
 }
 
 function KPICard({

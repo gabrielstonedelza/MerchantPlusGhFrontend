@@ -97,8 +97,8 @@ export default function Home() {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
+    const role = localStorage.getItem("role");
+    if (role === "owner") {
       router.replace("/dashboard");
     } else {
       setChecking(false);
@@ -119,9 +119,7 @@ export default function Home() {
       <nav className="fixed top-0 inset-x-0 z-50 bg-dark-900/90 backdrop-blur-md border-b border-dark-400/40">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gold flex items-center justify-center shadow-lg">
-              <span className="text-dark font-black text-sm leading-none">M+</span>
-            </div>
+            <img src="/logo.png" alt="MerchantPlus" className="w-8 h-8 rounded-lg object-cover" />
             <span className="font-bold text-lg tracking-tight">MerchantPlus</span>
           </div>
           <div className="flex items-center gap-3">
@@ -348,9 +346,7 @@ export default function Home() {
       <footer className="border-t border-dark-400/50 py-8 px-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-gold flex items-center justify-center">
-              <span className="text-dark font-black text-xs leading-none">M+</span>
-            </div>
+            <img src="/logo.png" alt="MerchantPlus" className="w-7 h-7 rounded-lg object-cover" />
             <span className="font-bold text-dark-100">MerchantPlus</span>
           </div>
           <p className="text-dark-300 text-sm">

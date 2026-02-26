@@ -62,22 +62,20 @@ export default function BalancesPage() {
   const [success, setSuccess] = useState("");
 
   // Use state so values are read after hydration and trigger re-renders
-  const [token, setToken] = useState("");
   const [companyId, setCompanyId] = useState("");
 
   useEffect(() => {
-    setToken(localStorage.getItem("token") || "");
     setCompanyId(localStorage.getItem("companyId") || "");
     setRole(localStorage.getItem("role") || "");
   }, []);
 
   const load = useCallback(async () => {
-    if (!token || !companyId) return;
+    if (!companyId) return;
     setLoading(true);
     try {
       const [memberData, balanceData] = await Promise.all([
-        getTeamMembers(token, companyId),
-        getProviderBalances(token, companyId),
+        getTeamMembers(companyId),
+        getProviderBalances(companyId),
       ]);
       setMembers(memberData.filter((m) => m.is_active));
       setBalances(balanceData);
@@ -86,13 +84,13 @@ export default function BalancesPage() {
     } finally {
       setLoading(false);
     }
-  }, [token, companyId]);
+  }, [companyId]);
 
   useEffect(() => {
-    if (token && companyId) {
+    if (companyId) {
       load();
     }
-  }, [token, companyId, load]);
+  }, [companyId, load]);
 
   // Group balances by agent
   const agentGroups: AgentBalanceGroup[] = members.map((member) => {
@@ -129,7 +127,7 @@ export default function BalancesPage() {
         const n = parseFloat(v);
         if (!isNaN(n) && n >= 0) numericBalances[k] = n;
       }
-      const updated = await initializeBalances(token, companyId, floatModal.user, numericBalances);
+      const updated = await initializeBalances(companyId, floatModal.user, numericBalances);
       setBalances((prev) => {
         const next = prev.filter((b) => b.user !== floatModal.user);
         return [...next, ...updated];
@@ -163,7 +161,7 @@ export default function BalancesPage() {
     setError("");
     try {
       const updated = await adminAdjustBalance(
-        token, companyId, adjustModal.member.user, adjustModal.provider, amt, adjustOp
+        companyId, adjustModal.member.user, adjustModal.provider, amt, adjustOp
       );
       setBalances((prev) => {
         const idx = prev.findIndex((b) => b.user === adjustModal.member.user && b.provider === adjustModal.provider);

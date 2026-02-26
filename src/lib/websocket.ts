@@ -12,17 +12,14 @@ export class DashboardWebSocket {
   private maxReconnectAttempts = 10;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private companyId: string;
-  private token: string;
 
-  constructor(companyId: string, token: string) {
+  constructor(companyId: string) {
     this.companyId = companyId;
-    this.token = token;
   }
 
   connect(): void {
-    const wsUrl =
-      process.env.NEXT_PUBLIC_WS_URL || `ws://${window.location.hostname}:8000`;
-    const url = `${wsUrl}/ws/admin/dashboard/?company_id=${this.companyId}&token=${this.token}`;
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const url = `${protocol}//${window.location.host}/ws/admin/dashboard/?company_id=${this.companyId}`;
 
     this.ws = new WebSocket(url);
 

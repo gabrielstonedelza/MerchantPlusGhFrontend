@@ -10,6 +10,7 @@ import {
   isTwoFactorRequired,
   Company,
   LoginSuccessResponse,
+  ApiError,
 } from "@/lib/api";
 
 export default function LoginPage() {
@@ -36,8 +37,14 @@ export default function LoginPage() {
     }
   }, [requires2FA]);
 
+  // Agent access denied state
+  const [agentBlocked, setAgentBlocked] = useState(false);
+  const [agentName, setAgentName] = useState("");
+
+  // Pending verification state
+  const [pendingVerification, setPendingVerification] = useState(false);
+
   function storeLoginData(data: LoginSuccessResponse) {
-    localStorage.setItem("token", data.token);
     localStorage.setItem("user", JSON.stringify(data.user));
     localStorage.setItem("membership", JSON.stringify(data.membership));
     localStorage.setItem("companyId", data.membership.company);
@@ -46,6 +53,20 @@ export default function LoginPage() {
     if (data.companies) {
       localStorage.setItem("companies", JSON.stringify(data.companies));
     }
+  }
+
+  function handleSuccessfulLogin(data: LoginSuccessResponse) {
+    if (data.membership.role !== "owner") {
+      // Agent detected — block access, clear stored data
+      ["user", "membership", "companyId", "companyName", "role", "companies"].forEach(
+        (k) => localStorage.removeItem(k)
+      );
+      setAgentName(data.user.full_name || "Agent");
+      setAgentBlocked(true);
+      return;
+    }
+    storeLoginData(data);
+    router.push("/dashboard");
   }
 
   async function handleLogin(e: FormEvent) {
@@ -68,9 +89,12 @@ export default function LoginPage() {
         return;
       }
 
-      storeLoginData(data);
-      router.push("/dashboard");
+      handleSuccessfulLogin(data);
     } catch (err) {
+      if (err instanceof ApiError && err.data.pending_verification) {
+        setPendingVerification(true);
+        return;
+      }
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
       setLoading(false);
@@ -97,9 +121,12 @@ export default function LoginPage() {
         return;
       }
 
-      storeLoginData(data);
-      router.push("/dashboard");
+      handleSuccessfulLogin(data);
     } catch (err) {
+      if (err instanceof ApiError && err.data.pending_verification) {
+        setPendingVerification(true);
+        return;
+      }
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
       setLoading(false);
@@ -161,8 +188,7 @@ export default function LoginPage() {
 
     try {
       const data = await verify2FA(tempToken, verifyCode);
-      storeLoginData(data);
-      router.push("/dashboard");
+      handleSuccessfulLogin(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Invalid code");
       setTotpCode(["", "", "", "", "", ""]);
@@ -186,8 +212,7 @@ export default function LoginPage() {
 
     try {
       const data = await verify2FA(tempToken, code);
-      storeLoginData(data);
-      router.push("/dashboard");
+      handleSuccessfulLogin(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Invalid backup code");
     } finally {
@@ -202,15 +227,105 @@ export default function LoginPage() {
     ? "company"
     : "login";
 
+  /* ── Agent access denied screen ── */
+  if (agentBlocked) {
+    return (
+      <div className="min-h-screen flex flex-col bg-dark">
+        <nav className="border-b border-dark-400/50 bg-dark-900/80 backdrop-blur-md">
+          <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <Link href="/" className="flex items-center gap-2.5">
+              <img src="/logo.png" alt="MerchantPlus" className="w-8 h-8 rounded-lg object-cover" />
+              <span className="font-bold text-lg tracking-tight">MerchantPlus</span>
+            </Link>
+          </div>
+        </nav>
+        <div className="flex-1 flex items-center justify-center px-4">
+          <div className="text-center max-w-md">
+            <div className="w-20 h-20 rounded-full bg-amber-500/10 border-2 border-amber-500/30 flex items-center justify-center mx-auto mb-6">
+              <svg className="w-10 h-10 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold mb-3">Access Restricted</h1>
+            <p className="text-dark-200 mb-2">
+              Hi <strong className="text-dark-50">{agentName}</strong>, this dashboard is for company owners only.
+            </p>
+            <p className="text-dark-300 text-sm mb-8">
+              As an agent, please use the Merchant+ mobile app to access your account, process transactions, and view your activity.
+            </p>
+            <button
+              onClick={() => {
+                setAgentBlocked(false);
+                setAgentName("");
+                setError("");
+                setEmail("");
+                setPassword("");
+              }}
+              className="btn-secondary px-8 py-2.5"
+            >
+              Back to Sign In
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Pending verification screen ── */
+  if (pendingVerification) {
+    return (
+      <div className="min-h-screen flex flex-col bg-dark">
+        <nav className="border-b border-dark-400/50 bg-dark-900/80 backdrop-blur-md">
+          <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <Link href="/" className="flex items-center gap-2.5">
+              <img src="/logo.png" alt="MerchantPlus" className="w-8 h-8 rounded-lg object-cover" />
+              <span className="font-bold text-lg tracking-tight">MerchantPlus</span>
+            </Link>
+          </div>
+        </nav>
+        <div className="flex-1 flex items-center justify-center px-4">
+          <div className="text-center max-w-md">
+            <div className="w-20 h-20 rounded-full bg-amber-500/10 border-2 border-amber-500/30 flex items-center justify-center mx-auto mb-6">
+              <svg className="w-10 h-10 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold mb-3">Account Pending Verification</h1>
+            <p className="text-dark-200 mb-6">
+              Your company is currently under review. You will receive an email once your account has been approved.
+            </p>
+            <p className="text-dark-300 text-sm mb-8">
+              This usually takes less than 24 hours. If you have any questions, contact us at{" "}
+              <a href="mailto:support@merchantplusgh.com" className="text-gold hover:text-gold-300 transition-colors">
+                support@merchantplusgh.com
+              </a>
+            </p>
+            <button
+              onClick={() => {
+                setPendingVerification(false);
+                setError("");
+                setEmail("");
+                setPassword("");
+              }}
+              className="btn-secondary px-8 py-2.5"
+            >
+              Back to Sign In
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-dark">
       {/* ── Navbar ── */}
       <nav className="border-b border-dark-400/50 bg-dark-900/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gold flex items-center justify-center shadow-lg">
-              <span className="text-dark font-black text-sm leading-none">M+</span>
-            </div>
+            <img src="/logo.png" alt="MerchantPlus" className="w-8 h-8 rounded-lg object-cover" />
             <span className="font-bold text-lg tracking-tight">MerchantPlus</span>
           </Link>
           <Link href="/register" className="btn-primary text-sm px-5 py-2">
@@ -229,8 +344,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md relative z-10">
         <div className="card glow-gold">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gold mb-4">
-              <span className="text-dark text-2xl font-black">M+</span>
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl overflow-hidden mb-4">
+              <img src="/logo.png" alt="MerchantPlus" className="w-full h-full object-cover" />
             </div>
             <h1 className="text-2xl font-bold text-dark-50">
               Merchant+

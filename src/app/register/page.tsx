@@ -162,9 +162,9 @@ export default function RegisterPage() {
         <Navbar />
         <div className="flex-1 flex items-center justify-center px-6 py-20">
           <div className="text-center max-w-md animate-slide-in">
-            <div className="w-24 h-24 rounded-full bg-emerald-500/10 border-2 border-emerald-500/30 flex items-center justify-center mx-auto mb-8">
+            <div className="w-24 h-24 rounded-full bg-amber-500/10 border-2 border-amber-500/30 flex items-center justify-center mx-auto mb-8">
               <svg
-                className="w-12 h-12 text-emerald-400"
+                className="w-12 h-12 text-amber-400"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -173,22 +173,41 @@ export default function RegisterPage() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M5 13l4 4L19 7"
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
             </div>
-            <h1 className="text-3xl font-bold mb-3">You&apos;re all set!</h1>
+            <h1 className="text-3xl font-bold mb-3">Registration Received!</h1>
             <p className="text-dark-200 mb-2">
               <strong className="text-dark-50">{form.company_name}</strong> has been
-              successfully registered on MerchantPlus.
+              registered and is now <strong className="text-amber-400">pending verification</strong>.
+            </p>
+            <div className="bg-amber-900/20 border border-amber-800/30 rounded-xl px-5 py-4 mb-6 text-left">
+              <p className="text-amber-200 text-sm font-medium mb-2">What happens next?</p>
+              <ul className="text-dark-200 text-sm space-y-1.5">
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-400 mt-0.5">1.</span>
+                  Our team will review your company details.
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-400 mt-0.5">2.</span>
+                  You&apos;ll receive an email at <strong className="text-dark-100">{form.owner_email}</strong> once approved.
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-400 mt-0.5">3.</span>
+                  After approval, you can sign in and start using your dashboard.
+                </li>
+              </ul>
+            </div>
+            <p className="text-dark-300 text-xs mb-6">
+              This usually takes less than 24 hours.
             </p>
             <Link
-                href="/login"
-                className="btn-primary px-8 py-3 text-base w-full block text-center"
+                href="/"
+                className="btn-secondary px-8 py-3 text-base w-full block text-center"
             >
-              Continue to Sign In
+              Back to Home
             </Link>
-
           </div>
         </div>
       </div>
@@ -667,9 +686,7 @@ function Navbar() {
     <nav className="border-b border-dark-400/50 bg-dark-900/80 backdrop-blur-md">
       <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gold flex items-center justify-center shadow-lg">
-            <span className="text-dark font-black text-sm leading-none">M+</span>
-          </div>
+          <img src="/logo.png" alt="MerchantPlus" className="w-8 h-8 rounded-lg object-cover" />
           <span className="font-bold text-lg tracking-tight">MerchantPlus</span>
         </Link>
         <Link
