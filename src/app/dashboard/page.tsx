@@ -224,7 +224,7 @@ export default function DashboardPage() {
 
       {/* KPI Summary Cards */}
       {dashboard && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
           <KPICard
             label="Today's Requests"
             value={dashboard.total_requests_today}
@@ -247,17 +247,19 @@ export default function DashboardPage() {
             value={dashboard.pending_approvals}
             highlight={dashboard.pending_approvals > 0}
           />
+          <KPICard
+            label="Pending Settlements"
+            value={dashboard.pending_settlements}
+            highlight={dashboard.pending_settlements > 0}
+          />
         </div>
       )}
 
       <ProviderBalanceCards balances={balances} />
 
-      {/* Pending Requests Panel */}
-      <PendingRequestsPanel requests={pendingRequests} />
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <TransactionFeed transactions={transactions} />
+          <TransactionFeed transactions={pendingRequests} />
         </div>
         <div>
           <UserActivity transactions={transactions} />
@@ -265,115 +267,6 @@ export default function DashboardPage() {
       </div>
     </div>
   );
-}
-
-function PendingRequestsPanel({ requests }: { requests: AgentRequest[] }) {
-  const sorted = [...requests].sort(
-    (a, b) => new Date(b.requested_at).getTime() - new Date(a.requested_at).getTime()
-  );
-
-  return (
-    <div className="card">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold text-dark-50">Pending Approvals</h2>
-          {requests.length > 0 && (
-            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
-              {requests.length}
-            </span>
-          )}
-        </div>
-        <Link
-          href="/dashboard/requests"
-          className="text-xs text-dark-300 hover:text-gold transition-colors"
-        >
-          View all →
-        </Link>
-      </div>
-
-      {sorted.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-10 text-center">
-          <div className="w-10 h-10 rounded-full bg-dark-500 border border-dark-400 flex items-center justify-center mb-3">
-            <svg className="w-5 h-5 text-dark-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <p className="text-dark-300 text-sm">No pending requests</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {sorted.slice(0, 8).map((req) => (
-            <Link
-              key={req.id}
-              href={`/dashboard/requests/${req.id}`}
-              className="flex items-center justify-between p-3 rounded-lg bg-dark-500/50 border border-dark-400 hover:bg-dark-500 hover:border-dark-300 transition-all group"
-            >
-              <div className="flex items-center gap-3">
-                <TypeIcon type={req.transaction_type} />
-                <div>
-                  <p className="text-sm font-medium text-dark-50 group-hover:text-white">
-                    {req.customer_name || "Walk-in"}
-                  </p>
-                  <p className="text-xs text-dark-300 capitalize">
-                    {req.transaction_type} &middot; {req.channel.replace("_", " ")}
-                  </p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className={`text-sm font-bold ${
-                  req.transaction_type === "deposit"
-                    ? "text-emerald-400"
-                    : req.transaction_type === "withdrawal"
-                    ? "text-red-400"
-                    : "text-dark-50"
-                }`}>
-                  GHS {Number(req.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </p>
-                <p className="text-[10px] text-dark-300">
-                  {timeAgo(req.requested_at)}
-                </p>
-              </div>
-            </Link>
-          ))}
-          {sorted.length > 8 && (
-            <Link
-              href="/dashboard/requests"
-              className="block text-center text-xs text-dark-300 hover:text-gold py-2 transition-colors"
-            >
-              +{sorted.length - 8} more pending requests
-            </Link>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function TypeIcon({ type }: { type: string }) {
-  const isDeposit = type === "deposit";
-  const isWithdrawal = type === "withdrawal";
-  return (
-    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${
-      isDeposit
-        ? "bg-emerald-900/50 text-emerald-400"
-        : isWithdrawal
-        ? "bg-red-900/50 text-red-400"
-        : "bg-blue-900/50 text-blue-400"
-    }`}>
-      {isDeposit ? "D" : isWithdrawal ? "W" : "T"}
-    </div>
-  );
-}
-
-function timeAgo(dateStr: string) {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
 }
 
 function KPICard({

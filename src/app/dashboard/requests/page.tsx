@@ -18,7 +18,7 @@ function timeAgo(dateStr: string) {
 
 const STATUS_STYLES: Record<string, string> = {
   pending: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-  approved: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  approved: "bg-blue-500/20 text-blue-400 border-blue-500/30",
   completed: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
   rejected: "bg-red-500/20 text-red-400 border-red-500/30",
   failed: "bg-red-500/20 text-red-400 border-red-500/30",
@@ -54,11 +54,16 @@ export default function RequestsPage() {
 
   const rows = tab === "pending" ? pending : all;
   const filtered = search.trim()
-    ? rows.filter((r) =>
-        r.reference.toLowerCase().includes(search.toLowerCase()) ||
-        (r.customer_name || "").toLowerCase().includes(search.toLowerCase()) ||
-        r.transaction_type.toLowerCase().includes(search.toLowerCase())
-      )
+    ? rows.filter((r) => {
+        const q = search.toLowerCase();
+        return (
+          r.reference.toLowerCase().includes(q) ||
+          (r.customer_name || "").toLowerCase().includes(q) ||
+          (r.requested_by_name || "").toLowerCase().includes(q) ||
+          r.transaction_type.toLowerCase().includes(q) ||
+          r.channel.replace("_", " ").toLowerCase().includes(q)
+        );
+      })
     : rows;
 
   return (
@@ -73,7 +78,7 @@ export default function RequestsPage() {
           href="/dashboard"
           className="text-sm text-dark-300 hover:text-dark-50 transition-colors"
         >
-          ← Back to Dashboard
+          &larr; Back to Dashboard
         </Link>
       </div>
 
@@ -109,7 +114,7 @@ export default function RequestsPage() {
 
         <input
           type="text"
-          placeholder="Search by reference, customer, or type…"
+          placeholder="Search by agent, customer, phone, type, or channel..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1 bg-dark-600 border border-dark-400 rounded-lg px-3 py-2 text-sm text-dark-50 placeholder-dark-400 focus:outline-none focus:border-dark-200"
@@ -139,9 +144,9 @@ export default function RequestsPage() {
             {/* Table Header */}
             <div className="grid grid-cols-[2rem_1fr_1fr_1fr_1fr_6rem] gap-4 px-4 py-2.5 border-b border-dark-400 bg-dark-600">
               <div />
-              <p className="text-xs text-dark-300 uppercase tracking-wide">Reference</p>
-              <p className="text-xs text-dark-300 uppercase tracking-wide">Customer</p>
+              <p className="text-xs text-dark-300 uppercase tracking-wide">Agent / Reference</p>
               <p className="text-xs text-dark-300 uppercase tracking-wide">Type / Channel</p>
+              <p className="text-xs text-dark-300 uppercase tracking-wide">Status</p>
               <p className="text-xs text-dark-300 uppercase tracking-wide text-right">Amount</p>
               <p className="text-xs text-dark-300 uppercase tracking-wide text-right">Time</p>
             </div>
@@ -178,21 +183,25 @@ function RequestRow({ req }: { req: AgentRequest }) {
         {isDeposit ? "D" : isWithdrawal ? "W" : "T"}
       </div>
 
-      {/* Reference */}
+      {/* Agent / Reference */}
       <div>
-        <p className="text-sm font-medium text-dark-50 group-hover:text-white">{req.reference}</p>
-        <span className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${STATUS_STYLES[req.status] ?? STATUS_STYLES.pending}`}>
-          {req.status}
-        </span>
+        <p className="text-sm font-medium text-dark-50 group-hover:text-white">
+          {req.requested_by_name || "Unknown Agent"}
+        </p>
+        <p className="text-[11px] text-dark-400">{req.reference}</p>
       </div>
-
-      {/* Customer */}
-      <p className="text-sm text-dark-200 truncate">{req.customer_name || "Walk-in"}</p>
 
       {/* Type / Channel */}
       <div>
         <p className="text-sm text-dark-200 capitalize">{req.transaction_type}</p>
         <p className="text-xs text-dark-400 capitalize">{req.channel.replace("_", " ")}</p>
+      </div>
+
+      {/* Status */}
+      <div>
+        <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full border capitalize ${STATUS_STYLES[req.status] ?? STATUS_STYLES.pending}`}>
+          {req.status}
+        </span>
       </div>
 
       {/* Amount */}

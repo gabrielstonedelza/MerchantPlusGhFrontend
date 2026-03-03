@@ -397,13 +397,11 @@ export interface Membership {
   deactivated_at: string | null;
 }
 
-export interface BankDepositDetail {
+export interface BankTransactionDetail {
   bank_name: string;
   account_number: string;
   account_name: string;
-  depositor_name: string;
-  slip_number: string;
-  slip_image: string | null;
+  customer_name: string;
 }
 
 export interface MoMoDetail {
@@ -431,10 +429,17 @@ export interface AgentRequest {
   id: string;
   reference: string;
   company: string;
+  requested_by: string | null;
+  requested_by_name: string | null;
   customer: string | null;
   customer_name: string | null;
+  customer_phone: string | null;
   transaction_type: string;
   channel: string;
+  bank: string;
+  bank_display: string;
+  mobile_network: string;
+  mobile_network_display: string;
   status: string;
   amount: string;
   fee: string;
@@ -443,7 +448,10 @@ export interface AgentRequest {
   approved_by_name: string | null;
   approved_at: string | null;
   rejection_reason: string;
-  bank_deposit_detail: BankDepositDetail | null;
+  settled_by: string | null;
+  settled_by_name: string | null;
+  settled_at: string | null;
+  bank_transaction_detail: BankTransactionDetail | null;
   momo_detail: MoMoDetail | null;
   cash_detail: CashDetail | null;
   requested_at: string;
@@ -483,6 +491,7 @@ export interface DashboardData {
   total_withdrawals_today: string;
   total_fees_today: string;
   pending_approvals: number;
+  pending_settlements: number;
   total_customers: number;
   total_active_users: number;
   requests_by_channel: Record<string, number>;

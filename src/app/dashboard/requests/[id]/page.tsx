@@ -101,7 +101,7 @@ export default function RequestDetailPage({ params }: { params: Promise<{ id: st
       <div className="flex flex-col items-center justify-center h-64 gap-4">
         <p className="text-dark-300">Request not found.</p>
         <Link href="/dashboard/requests" className="text-sm text-gold hover:underline">
-          ← Back to requests
+          &larr; Back to requests
         </Link>
       </div>
     );
@@ -117,7 +117,7 @@ export default function RequestDetailPage({ params }: { params: Promise<{ id: st
       <div className="flex items-center justify-between">
         <div>
           <Link href="/dashboard/requests" className="text-xs text-dark-400 hover:text-dark-200 transition-colors">
-            ← Requests
+            &larr; Requests
           </Link>
           <h1 className="text-xl font-bold text-dark-50 mt-1">{request.reference}</h1>
         </div>
@@ -157,9 +157,10 @@ export default function RequestDetailPage({ params }: { params: Promise<{ id: st
         </div>
       )}
 
-      {/* Core details */}
+      {/* Request Summary */}
       <Section title="Request Details">
         <DetailRow label="Reference" value={request.reference} />
+        <DetailRow label="Agent" value={request.requested_by_name || "Unknown Agent"} />
         <DetailRow label="Type" value={<span className="capitalize">{request.transaction_type}</span>} />
         <DetailRow label="Channel" value={<span className="capitalize">{request.channel.replace("_", " ")}</span>} />
         <DetailRow label="Status" value={<StatusBadge status={request.status} />} />
@@ -176,7 +177,6 @@ export default function RequestDetailPage({ params }: { params: Promise<{ id: st
           label="Fee"
           value={`GHS ${Number(request.fee).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
         />
-        <DetailRow label="Customer" value={request.customer_name || "Walk-in"} />
         <DetailRow
           label="Requested At"
           value={new Date(request.requested_at).toLocaleString()}
@@ -186,35 +186,48 @@ export default function RequestDetailPage({ params }: { params: Promise<{ id: st
         )}
       </Section>
 
-      {/* Bank Deposit Details */}
-      {request.bank_deposit_detail && (
-        <Section title="Bank Deposit Details">
-          <DetailRow label="Bank Name" value={request.bank_deposit_detail.bank_name} />
-          <DetailRow label="Account Number" value={request.bank_deposit_detail.account_number} />
-          <DetailRow label="Account Name" value={request.bank_deposit_detail.account_name} />
-          <DetailRow label="Depositor Name" value={request.bank_deposit_detail.depositor_name} />
-          <DetailRow label="Slip Number" value={request.bank_deposit_detail.slip_number} />
-          {request.bank_deposit_detail.slip_image && (
-            <div className="pt-3">
-              <p className="text-xs text-dark-300 uppercase tracking-wide mb-2">Deposit Slip</p>
-              <img
-                src={request.bank_deposit_detail.slip_image}
-                alt="Deposit slip"
-                className="max-w-xs rounded-lg border border-dark-400"
-              />
-            </div>
+      {/* Customer Details */}
+      <Section title="Customer Details">
+        {request.customer_name ? (
+          <>
+            <DetailRow label="Customer Name" value={request.customer_name} />
+            <DetailRow label="Phone Number" value={request.customer_phone || "N/A"} />
+          </>
+        ) : (
+          <div className="py-3 text-sm text-dark-300 italic">Walk-in customer (no registered customer selected)</div>
+        )}
+      </Section>
+
+      {/* Bank Transaction Details — always show for bank channel */}
+      {request.channel === "bank" && (
+        <Section title="Bank Transaction Details">
+          <DetailRow label="Bank" value={request.bank_display || <span className="capitalize">{request.bank || "\u2014"}</span>} />
+          {request.bank_transaction_detail ? (
+            <>
+              <DetailRow label="Account Number" value={request.bank_transaction_detail.account_number} />
+              <DetailRow label="Account Name" value={request.bank_transaction_detail.account_name} />
+              <DetailRow label="Customer Name" value={request.bank_transaction_detail.customer_name} />
+            </>
+          ) : (
+            <div className="py-3 text-sm text-dark-300 italic">No bank account details recorded for this request</div>
           )}
         </Section>
       )}
 
-      {/* MoMo Details */}
-      {request.momo_detail && (
+      {/* MoMo Details — always show for mobile_money channel */}
+      {request.channel === "mobile_money" && (
         <Section title="Mobile Money Details">
-          <DetailRow label="Network" value={<span className="uppercase">{request.momo_detail.network}</span>} />
-          <DetailRow label="Service Type" value={<span className="capitalize">{request.momo_detail.service_type.replace("_", " ")}</span>} />
-          <DetailRow label="Sender Number" value={request.momo_detail.sender_number || "—"} />
-          <DetailRow label="Receiver Number" value={request.momo_detail.receiver_number || "—"} />
-          <DetailRow label="MoMo Reference" value={request.momo_detail.momo_reference} />
+          <DetailRow label="Network" value={request.mobile_network_display || <span className="uppercase">{request.mobile_network || "\u2014"}</span>} />
+          {request.momo_detail ? (
+            <>
+              <DetailRow label="Service Type" value={<span className="capitalize">{request.momo_detail.service_type.replace("_", " ")}</span>} />
+              <DetailRow label="Sender Number" value={request.momo_detail.sender_number || "\u2014"} />
+              <DetailRow label="Receiver Number" value={request.momo_detail.receiver_number || "\u2014"} />
+              <DetailRow label="MoMo Reference" value={request.momo_detail.momo_reference || "\u2014"} />
+            </>
+          ) : (
+            <div className="py-3 text-sm text-dark-300 italic">No mobile money details recorded for this request</div>
+          )}
         </Section>
       )}
 
@@ -235,7 +248,7 @@ export default function RequestDetailPage({ params }: { params: Promise<{ id: st
           )
             .filter(([, qty]) => qty > 0)
             .map(([denom, qty]) => (
-              <DetailRow key={denom} label={denom} value={`× ${qty}`} />
+              <DetailRow key={denom} label={denom} value={`\u00d7 ${qty}`} />
             ))}
           <DetailRow label="Total" value={`GHS ${Number(request.cash_detail.denomination_total).toLocaleString(undefined, { minimumFractionDigits: 2 })}`} />
         </Section>
@@ -243,7 +256,7 @@ export default function RequestDetailPage({ params }: { params: Promise<{ id: st
 
       {/* Approval info (if already actioned) */}
       {(request.approved_by_name || request.rejection_reason) && (
-        <Section title="Action Details">
+        <Section title="Approval Details">
           {request.approved_by_name && (
             <DetailRow label="Actioned By" value={request.approved_by_name} />
           )}
@@ -252,6 +265,16 @@ export default function RequestDetailPage({ params }: { params: Promise<{ id: st
           )}
           {request.rejection_reason && (
             <DetailRow label="Rejection Reason" value={request.rejection_reason} />
+          )}
+        </Section>
+      )}
+
+      {/* Settlement info */}
+      {request.settled_by_name && (
+        <Section title="Settlement Details">
+          <DetailRow label="Settled By" value={request.settled_by_name} />
+          {request.settled_at && (
+            <DetailRow label="Settled At" value={new Date(request.settled_at).toLocaleString()} />
           )}
         </Section>
       )}
@@ -298,7 +321,7 @@ export default function RequestDetailPage({ params }: { params: Promise<{ id: st
               rows={3}
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.target.value)}
-              placeholder="e.g. Incomplete documentation, amount mismatch…"
+              placeholder="e.g. Incomplete documentation, amount mismatch..."
               className="w-full bg-dark-500 border border-dark-400 rounded-lg px-3 py-2 text-sm text-dark-50 placeholder-dark-400 focus:outline-none focus:border-red-500 resize-none"
             />
             {error && <p className="text-xs text-red-400">{error}</p>}
@@ -314,7 +337,7 @@ export default function RequestDetailPage({ params }: { params: Promise<{ id: st
                 disabled={actionLoading || !rejectionReason.trim()}
                 className="flex-1 py-2.5 rounded-xl bg-red-700 hover:bg-red-600 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold transition-colors text-sm"
               >
-                {actionLoading ? "Rejecting…" : "Confirm Reject"}
+                {actionLoading ? "Rejecting..." : "Confirm Reject"}
               </button>
             </div>
           </div>
@@ -327,7 +350,7 @@ export default function RequestDetailPage({ params }: { params: Promise<{ id: st
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     pending: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-    approved: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+    approved: "bg-blue-500/20 text-blue-400 border-blue-500/30",
     completed: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
     rejected: "bg-red-500/20 text-red-400 border-red-500/30",
     failed: "bg-red-500/20 text-red-400 border-red-500/30",

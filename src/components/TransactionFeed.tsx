@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { AgentRequest } from "@/lib/api";
+import Link from "next/link";
 
 interface Props {
   transactions: AgentRequest[];
@@ -30,35 +31,62 @@ export default function TransactionFeed({ transactions }: Props) {
       ? transactions
       : transactions.filter((t) => t.transaction_type === filter);
 
+  const sorted = [...filtered].sort(
+    (a, b) => new Date(b.requested_at).getTime() - new Date(a.requested_at).getTime()
+  );
+
   return (
     <div className="card">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-dark-50">
-          Request Feed
-          <span className="text-sm font-normal text-dark-200 ml-2">(live)</span>
-        </h2>
-        <div className="flex gap-2">
-          {["all", "deposit", "withdrawal", "transfer"].map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`text-xs px-3 py-1 rounded-full transition-colors ${
-                filter === f
-                  ? "bg-gold text-dark font-semibold"
-                  : "bg-dark-500 text-dark-200 hover:bg-dark-400"
-              }`}
-            >
-              {f.charAt(0).toUpperCase() + f.slice(1)}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-dark-50">
+            Request Feed
+            <span className="text-sm font-normal text-dark-200 ml-2">(live)</span>
+          </h2>
+          {transactions.length > 0 && (
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
+              {transactions.length}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1">
+            {["all", "deposit", "withdrawal", "transfer"].map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`text-xs px-3 py-1 rounded-full transition-colors ${
+                  filter === f
+                    ? "bg-gold text-dark font-semibold"
+                    : "bg-dark-500 text-dark-200 hover:bg-dark-400"
+                }`}
+              >
+                {f.charAt(0).toUpperCase() + f.slice(1)}
+              </button>
+            ))}
+          </div>
+          <Link
+            href="/dashboard/requests"
+            className="text-xs text-dark-300 hover:text-gold transition-colors ml-2"
+          >
+            View all &rarr;
+          </Link>
         </div>
       </div>
 
       <div className="space-y-2 max-h-[500px] overflow-y-auto">
-        {filtered.length === 0 ? (
-          <p className="text-dark-300 text-center py-8">No requests yet</p>
+        {sorted.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <div className="w-10 h-10 rounded-full bg-dark-500 border border-dark-400 flex items-center justify-center mb-3">
+              <svg className="w-5 h-5 text-dark-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <p className="text-dark-300 text-sm">No pending requests</p>
+          </div>
         ) : (
-          filtered.slice(0, 50).map((tx) => (
+          sorted.slice(0, 50).map((tx) => (
             <RequestRow key={tx.id} request={tx} isNew={newIds.has(tx.id)} />
           ))
         )}
@@ -77,22 +105,13 @@ function RequestRow({
   const isDeposit = tx.transaction_type === "deposit";
   const isWithdrawal = tx.transaction_type === "withdrawal";
 
-  const statusBadge: Record<string, string> = {
-    completed: "badge-completed",
-    pending: "badge-pending",
-    rejected:
-      "bg-red-900/40 text-red-400 text-xs font-medium px-2.5 py-0.5 rounded-full border border-red-800/30",
-    approved: "badge-completed",
-    failed:
-      "bg-red-900/40 text-red-400 text-xs font-medium px-2.5 py-0.5 rounded-full border border-red-800/30",
-  };
-
   return (
-    <div
-      className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
+    <Link
+      href={`/dashboard/requests/${tx.id}`}
+      className={`flex items-center justify-between p-3 rounded-lg border transition-all group ${
         isNew
           ? "animate-slide-in bg-gold/10 border-gold/30"
-          : "bg-dark-500/50 border-dark-400 hover:bg-dark-500"
+          : "bg-dark-500/50 border-dark-400 hover:bg-dark-500 hover:border-dark-300"
       }`}
     >
       <div className="flex items-center gap-3">
@@ -109,12 +128,19 @@ function RequestRow({
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-dark-50">{tx.reference}</span>
-            <span className={statusBadge[tx.status] ?? "badge-pending"}>{tx.status}</span>
+            <span className="text-sm font-medium text-dark-50 group-hover:text-white">
+              {tx.requested_by_name || "Unknown Agent"}
+            </span>
+            <span className="bg-amber-500/20 text-amber-400 text-[10px] font-medium px-2 py-0.5 rounded-full border border-amber-500/30">
+              pending
+            </span>
           </div>
-          <p className="text-xs text-dark-300">
-            {tx.customer_name || "Walk-in"} &middot;{" "}
-            {tx.channel.replace("_", " ")}
+          <p className="text-xs text-dark-300 capitalize">
+            {tx.transaction_type} &middot;{" "}
+            {tx.channel.replace("_", " ")} &middot;{" "}
+            <span className="text-dark-400">
+              {tx.reference}
+            </span>
           </p>
         </div>
       </div>
@@ -133,6 +159,6 @@ function RequestRow({
           </p>
         )}
       </div>
-    </div>
+    </Link>
   );
 }
